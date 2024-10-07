@@ -52,3 +52,16 @@ define Device/yuncore_fap650
 endef
 TARGET_DEVICES += yuncore_fap650
 
+define Device/jdcloud_ax1800-pro
+	$(call Device/FitImage)
+	$(call Device/EmmcImage)
+	DEVICE_VENDOR := JDCloud
+	DEVICE_MODEL := AX1800 Pro
+	SOC := ipq6000
+	BLOCKSIZE := 64k
+	KERNEL_SIZE := 6144k
+	DEVICE_DTS_CONFIG := config@cp03-c2
+	DEVICE_PACKAGES := ipq-wifi-jdcloud_ax1800pro kmod-fs-f2fs mkf2fs f2fsck block-mount
+	IMAGE/factory.bin := append-kernel | pad-to $${KERNEL_SIZE} | append-rootfs | append-metadata
+endef
+TARGET_DEVICES += jdcloud_ax1800-pro
