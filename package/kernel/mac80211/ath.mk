@@ -370,14 +370,13 @@ define KernelPackage/ath11k/config
 
        config ATH11K_NSS_SUPPORT
                bool "Enable NSS WiFi offload"
-	       select ATH11K_MEM_PROFILE_512M if TARGET_qualcommax_ipq807x_DEVICE_edimax_cax1800
-	       select ATH11K_MEM_PROFILE_512M if TARGET_qualcommax_ipq807x_DEVICE_compex_wpq873
-	       select ATH11K_MEM_PROFILE_512M if TARGET_qualcommax_ipq807x_DEVICE_linksys_mx4200v1
-	       select ATH11K_MEM_PROFILE_512M if TARGET_qualcommax_ipq807x_DEVICE_redmi_ax6
-	       select ATH11K_MEM_PROFILE_512M if TARGET_qualcommax_ipq807x_DEVICE_xiaomi_ax3600
-	       select ATH11K_MEM_PROFILE_512M if TARGET_qualcommax_ipq807x_DEVICE_zte_mf269
-	       select ATH11K_MEM_PROFILE_512M if TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_ax1800-pro
-
+               select ATH11K_MEM_PROFILE_512M if (TARGET_qualcommax_ipq807x_DEVICE_edimax_cax1800 || \
+               	 TARGET_qualcommax_ipq807x_DEVICE_compex_wpq873 || \
+               	 TARGET_qualcommax_ipq807x_DEVICE_linksys_mx4200v1 || \
+               	 TARGET_qualcommax_ipq807x_DEVICE_redmi_ax6 || \
+               	 TARGET_qualcommax_ipq807x_DEVICE_xiaomi_ax3600 || \
+               	 TARGET_qualcommax_ipq807x_DEVICE_zte_mf269 || \
+		 TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_ax1800-pro )
                select ATH11K_MEM_PROFILE_256M if TARGET_qualcommax_ipq807x_DEVICE_netgear_wax218
                default y
                help
@@ -394,7 +393,7 @@ define KernelPackage/ath11k/config
        choice
             prompt "Memory Profile"
             depends on PACKAGE_kmod-ath11k
-            default ATH11K_MEM_PROFILE_512M
+            default ATH11K_MEM_PROFILE_1G
             help
             	This option allows you to select the memory profile.
             	It should correspond to the total RAM of your board.
@@ -408,11 +407,13 @@ define KernelPackage/ath11k/config
                bool "Use 512MB memory profile"
                help
                   This allows configuring ath11k for boards with 512M memory.
+                  The default is 1GB if not selected
 
           config ATH11K_MEM_PROFILE_256M
                bool "Use 256MB memory profile"
                help
                   This allows configuring ath11k for boards with 256M memory.
+                  The default is 1GB if not selected
        endchoice
 endef
 
