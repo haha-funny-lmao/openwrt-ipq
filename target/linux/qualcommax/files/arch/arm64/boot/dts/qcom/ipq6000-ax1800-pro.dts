@@ -29,7 +29,7 @@
 
 	chosen {
 		stdout-path = "serial0:115200n8";
-		bootargs-append = " rootfstype=squashfs,ext4";
+		bootargs-append = " rootfstype=squashfs,ext4 coherent_pool=2M swiotlb=1";
 	};
 
 	keys {
