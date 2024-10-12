@@ -6,6 +6,6 @@
  	bool "require regdb signature" if CFG80211_CERTIFICATION_ONUS
 -	default y
 +	default n
- 	select BPAUTO_SYSTEM_DATA_VERIFICATION
+ 	depends on SYSTEM_DATA_VERIFICATION
  	help
  	  Require that in addition to the "regulatory.db" file a

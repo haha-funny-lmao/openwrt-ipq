@@ -33,7 +33,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
 
 --- a/include/linux/ieee80211.h
 +++ b/include/linux/ieee80211.h
-@@ -2569,6 +2569,7 @@ struct ieee80211_he_6ghz_oper {
+@@ -2781,6 +2781,7 @@ struct ieee80211_he_6ghz_oper {
  #define		IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_160MHZ	3
  #define IEEE80211_HE_6GHZ_OPER_CTRL_DUP_BEACON	0x4
  #define IEEE80211_HE_6GHZ_OPER_CTRL_REG_INFO	0x38
@@ -43,7 +43,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	u8 ccfs1;
 --- a/include/net/cfg80211.h
 +++ b/include/net/cfg80211.h
-@@ -518,6 +518,21 @@ struct ieee80211_sta_s1g_cap {
+@@ -543,6 +543,21 @@ struct ieee80211_sta_s1g_cap {
  };
  
  /**
@@ -65,7 +65,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
   * struct ieee80211_supported_band - frequency band definition
   *
   * This structure describes a frequency band a wiphy
-@@ -525,6 +540,7 @@ struct ieee80211_sta_s1g_cap {
+@@ -550,6 +565,7 @@ struct ieee80211_sta_s1g_cap {
   *
   * @channels: Array of channels the hardware can operate with
   *	in this band.
@@ -73,7 +73,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
   * @band: the band this structure represents
   * @n_channels: Number of channels in @channels
   * @bitrates: Array of bitrates the hardware can operate with
-@@ -544,6 +560,7 @@ struct ieee80211_sta_s1g_cap {
+@@ -569,6 +585,7 @@ struct ieee80211_sta_s1g_cap {
   */
  struct ieee80211_supported_band {
  	struct ieee80211_channel *channels;
@@ -81,8 +81,8 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	struct ieee80211_rate *bitrates;
  	enum nl80211_band band;
  	int n_channels;
-@@ -5848,6 +5865,8 @@ struct wireless_dev {
- 		};
+@@ -6348,6 +6365,8 @@ struct wireless_dev {
+ 		unsigned int cac_time_ms;
  	} links[IEEE80211_MLD_MAX_NUM_LINKS];
  	u16 valid_links;
 +
@@ -90,7 +90,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  };
  
  static inline const u8 *wdev_address(struct wireless_dev *wdev)
-@@ -6006,6 +6025,19 @@ ieee80211_get_channel(struct wiphy *wiph
+@@ -6506,6 +6525,19 @@ ieee80211_get_channel(struct wiphy *wiph
  }
  
  /**
@@ -112,7 +112,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
   *
 --- a/include/net/regulatory.h
 +++ b/include/net/regulatory.h
-@@ -218,6 +218,7 @@ struct ieee80211_reg_rule {
+@@ -208,6 +208,7 @@ struct ieee80211_reg_rule {
  	struct ieee80211_freq_range freq_range;
  	struct ieee80211_power_rule power_rule;
  	struct ieee80211_wmm_rule wmm_rule;
@@ -122,7 +122,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	bool has_wmm;
 --- a/include/uapi/linux/nl80211.h
 +++ b/include/uapi/linux/nl80211.h
-@@ -3299,6 +3299,8 @@ enum nl80211_attrs {
+@@ -3442,6 +3442,8 @@ enum nl80211_attrs {
  
  	NL80211_ATTR_AWGN_INTERFERENCE_BITMAP,
  
@@ -131,7 +131,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	/* add attributes here, update the policy in nl80211.c */
  
  	__NL80211_ATTR_AFTER_LAST,
-@@ -4046,6 +4048,20 @@ enum nl80211_band_attr {
+@@ -4212,6 +4214,20 @@ enum nl80211_band_attr {
  
  #define NL80211_BAND_ATTR_HT_CAPA NL80211_BAND_ATTR_HT_CAPA
  
@@ -154,21 +154,30 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
   *
 --- a/net/mac80211/util.c
 +++ b/net/mac80211/util.c
-@@ -3571,9 +3571,12 @@ bool ieee80211_chandef_he_6ghz_oper(stru
+@@ -3098,6 +3098,9 @@ bool ieee80211_chandef_he_6ghz_oper(stru
  	struct cfg80211_chan_def he_chandef = *chandef;
  	const struct ieee80211_he_6ghz_oper *he_6ghz_oper;
- 	struct ieee80211_bss_conf *bss_conf = &sdata->vif.bss_conf;
-+	enum nl80211_regulatory_power_modes mode;
- 	bool support_80_80, support_160, support_320;
- 	u8 he_phy_cap, eht_phy_cap;
  	u32 freq;
++	enum nl80211_regulatory_power_modes mode;
 +	u8 reg_info;
 +	u8 reg_6g_power_mode;
  
  	if (chandef->chan->band != NL80211_BAND_6GHZ)
  		return true;
-@@ -3616,6 +3619,24 @@ bool ieee80211_chandef_he_6ghz_oper(stru
+@@ -3116,8 +3119,9 @@ bool ieee80211_chandef_he_6ghz_oper(stru
+ 	 */
+ 	freq = ieee80211_channel_to_frequency(he_6ghz_oper->primary,
+ 					      NL80211_BAND_6GHZ);
+-	he_chandef.chan = ieee80211_get_channel(local->hw.wiphy, freq);
+-
++	he_chandef.chan = ieee80211_get_6g_channel_khz(sdata->local->hw.wiphy,
++						      MHZ_TO_KHZ(freq), mode);
++	
+ 	if (!he_chandef.chan)
  		return false;
+ 
+@@ -3672,6 +3676,24 @@ again:
+ 		c->width = new_primary_width;
  	}
  
 +	/* 6G Power mode present in the beacon */
@@ -190,21 +199,11 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
 +	else
 +		mode = 3 * (1 + reg_6g_power_mode) + reg_info;
  	/*
- 	 * The EHT operation IE does not contain the primary channel so the
- 	 * primary channel frequency should be taken from the 6 GHz operation
-@@ -3623,7 +3644,8 @@ bool ieee80211_chandef_he_6ghz_oper(stru
- 	 */
- 	freq = ieee80211_channel_to_frequency(he_6ghz_oper->primary,
- 					      NL80211_BAND_6GHZ);
--	he_chandef.chan = ieee80211_get_channel(sdata->local->hw.wiphy, freq);
-+	he_chandef.chan = ieee80211_get_6g_channel_khz(sdata->local->hw.wiphy,
-+						       MHZ_TO_KHZ(freq), mode);
- 
- 	switch (u8_get_bits(he_6ghz_oper->control,
- 			    IEEE80211_HE_6GHZ_OPER_CTRL_REG_INFO)) {
+ 	 * With an 80 MHz channel, we might have the puncturing in the primary
+ 	 * 40 Mhz channel, but that's not valid when downgraded to 40 MHz width.
 --- a/net/wireless/nl80211.c
 +++ b/net/wireless/nl80211.c
-@@ -836,6 +836,7 @@ static const struct nla_policy nl80211_p
+@@ -841,6 +841,7 @@ static const struct nla_policy nl80211_p
  	[NL80211_ATTR_STA_MGMT_RTS_CTS_CONFIG] =
  					NLA_POLICY_MAX(NLA_U8, NL80211_MGMT_RTS_CTS_DISABLE),
  	[NL80211_ATTR_AWGN_INTERFERENCE_BITMAP] = { .type = NLA_U32 },
@@ -212,15 +211,15 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  };
  
  /* policy for the key attributes */
-@@ -3210,6 +3211,7 @@ int nl80211_parse_chandef(struct cfg8021
+@@ -3347,6 +3348,7 @@ static int _nl80211_parse_chandef(struct
  {
- 	struct netlink_ext_ack *extack = genl_info_extack(info);
+ 	struct netlink_ext_ack *extack = info->extack;
  	struct nlattr **attrs = info->attrs;
 +	enum nl80211_regulatory_power_modes mode = NL80211_REG_AP_LPI;
  	u32 control_freq;
  
- 	if (!attrs[NL80211_ATTR_WIPHY_FREQ])
-@@ -3221,8 +3223,19 @@ int nl80211_parse_chandef(struct cfg8021
+ 	if (!attrs[NL80211_ATTR_WIPHY_FREQ]) {
+@@ -3361,8 +3363,19 @@ static int _nl80211_parse_chandef(struct
  		control_freq +=
  		    nla_get_u32(info->attrs[NL80211_ATTR_WIPHY_FREQ_OFFSET]);
  
@@ -243,7 +242,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	chandef->freq1_offset = control_freq % 1000;
 --- a/net/wireless/reg.c
 +++ b/net/wireless/reg.c
-@@ -1627,7 +1627,8 @@ static u32 map_regdom_flags(u32 rd_flags
+@@ -1607,7 +1607,8 @@ static u32 map_regdom_flags(u32 rd_flags
  
  static const struct ieee80211_reg_rule *
  freq_reg_info_regd(u32 center_freq,
@@ -253,7 +252,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  {
  	int i;
  	bool band_rule_found = false;
-@@ -1641,7 +1642,12 @@ freq_reg_info_regd(u32 center_freq,
+@@ -1621,7 +1622,12 @@ freq_reg_info_regd(u32 center_freq,
  		const struct ieee80211_freq_range *fr = NULL;
  
  		rr = &regd->reg_rules[i];
@@ -267,7 +266,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  
  		/*
  		 * We only need to know if one frequency rule was
-@@ -1673,7 +1679,7 @@ __freq_reg_info(struct wiphy *wiphy, u32
+@@ -1653,7 +1659,7 @@ __freq_reg_info(struct wiphy *wiphy, u32
  	u32 bw;
  
  	for (bw = MHZ_TO_KHZ(bws[i]); bw >= min_bw; bw = MHZ_TO_KHZ(bws[i--])) {
@@ -276,7 +275,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  		if (!IS_ERR(reg_rule))
  			return reg_rule;
  	}
-@@ -2325,7 +2331,7 @@ static void reg_process_ht_flags_channel
+@@ -2316,7 +2322,7 @@ static void reg_process_ht_flags_channel
  	if (regd) {
  		const struct ieee80211_reg_rule *reg_rule =
  			freq_reg_info_regd(MHZ_TO_KHZ(channel->center_freq),
@@ -285,7 +284,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  
  		if (!IS_ERR(reg_rule))
  			flags = reg_rule->flags;
-@@ -2564,7 +2570,8 @@ static void update_all_wiphy_regulatory(
+@@ -2544,7 +2550,8 @@ static void update_all_wiphy_regulatory(
  static void handle_channel_custom(struct wiphy *wiphy,
  				  struct ieee80211_channel *chan,
  				  const struct ieee80211_regdomain *regd,
@@ -295,7 +294,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  {
  	u32 bw_flags = 0;
  	const struct ieee80211_reg_rule *reg_rule = NULL;
-@@ -2573,7 +2580,7 @@ static void handle_channel_custom(struct
+@@ -2553,7 +2560,7 @@ static void handle_channel_custom(struct
  
  	center_freq_khz = ieee80211_channel_to_khz(chan);
  	for (bw = MHZ_TO_KHZ(20); bw >= min_bw; bw = bw / 2) {
@@ -304,7 +303,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  		if (!IS_ERR(reg_rule))
  			break;
  	}
-@@ -2626,10 +2633,20 @@ static void handle_band_custom(struct wi
+@@ -2606,10 +2613,20 @@ static void handle_band_custom(struct wi
  			       const struct ieee80211_regdomain *regd)
  {
  	unsigned int i;
@@ -325,7 +324,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	/*
  	 * We currently assume that you always want at least 20 MHz,
  	 * otherwise channel 12 might get enabled if this rule is
-@@ -2637,7 +2654,7 @@ static void handle_band_custom(struct wi
+@@ -2617,7 +2634,7 @@ static void handle_band_custom(struct wi
  	 */
  	for (i = 0; i < sband->n_channels; i++)
  		handle_channel_custom(wiphy, &sband->channels[i], regd,
@@ -336,7 +335,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  /* Used by drivers prior to wiphy registration */
 --- a/net/wireless/util.c
 +++ b/net/wireless/util.c
-@@ -165,6 +165,30 @@ int ieee80211_freq_khz_to_channel(u32 fr
+@@ -159,6 +159,30 @@ int ieee80211_freq_khz_to_channel(u32 fr
  }
  EXPORT_SYMBOL(ieee80211_freq_khz_to_channel);
  

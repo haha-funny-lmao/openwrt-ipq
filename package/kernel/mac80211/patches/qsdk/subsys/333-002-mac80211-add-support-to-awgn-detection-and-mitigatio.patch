@@ -36,7 +36,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
 
 --- a/include/net/cfg80211.h
 +++ b/include/net/cfg80211.h
-@@ -8419,6 +8419,19 @@ cfg80211_background_radar_event(struct w
+@@ -8740,6 +8740,19 @@ cfg80211_background_radar_event(struct w
  }
  
  /**
@@ -58,7 +58,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
   * @mac: MAC address of a station which opmode got modified
 --- a/include/net/mac80211.h
 +++ b/include/net/mac80211.h
-@@ -6649,9 +6649,10 @@ void ieee80211_channel_switch_disconnect
+@@ -6843,9 +6843,10 @@ void ieee80211_channel_switch_disconnect
  /**
   * ieee80211_awgn_detected - inform that awgn interference is detected
   *
@@ -73,7 +73,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
   * ieee80211_request_smps - request SM PS transition
 --- a/include/uapi/linux/nl80211.h
 +++ b/include/uapi/linux/nl80211.h
-@@ -1318,6 +1318,12 @@
+@@ -1333,6 +1333,12 @@
   *	This event is used to update dynamic MU-EDCA parameters in Beacon frame,
   *	coming from driver and now need to be reflected in Beacon frame.
   *
@@ -86,8 +86,8 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
   * @NL80211_CMD_MAX: highest used command number
   * @__NL80211_CMD_AFTER_LAST: internal use
   */
-@@ -1574,6 +1580,8 @@ enum nl80211_commands {
- 	NL80211_CMD_LINKS_REMOVED,
+@@ -1591,6 +1597,8 @@ enum nl80211_commands {
+ 	NL80211_CMD_SET_TID_TO_LINK_MAPPING,
  
  	NL80211_CMD_UPDATE_HE_MUEDCA_PARAMS,
 +
@@ -95,7 +95,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  	/* add new commands above here */
  
  	/* used to define NL80211_CMD_MAX below */
-@@ -3376,6 +3384,8 @@ enum nl80211_attrs {
+@@ -3432,6 +3440,8 @@ enum nl80211_attrs {
  
  	NL80211_ATTR_STA_MGMT_RTS_CTS_CONFIG,
  
@@ -106,17 +106,17 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  	__NL80211_ATTR_AFTER_LAST,
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -1001,8 +1001,6 @@ struct ieee80211_link_data {
- 
- 	struct cfg80211_chan_def csa_chandef;
+@@ -1059,8 +1059,6 @@ struct ieee80211_link_data {
+ 		struct ieee80211_chan_req chanreq;
+ 	} csa;
  
 -	struct work_struct awgn_detected_work;
 -
- 	struct work_struct color_change_finalize_work;
+ 	struct wiphy_work color_change_finalize_work;
  	struct delayed_work color_collision_detect_work;
  	u64 color_bitmap;
-@@ -1622,6 +1620,8 @@ struct ieee80211_local {
- 	struct cfg80211_chan_def monitor_chandef;
+@@ -1627,6 +1625,8 @@ struct ieee80211_local {
+ 	struct ieee80211_chan_req monitor_chanreq;
  
  	struct mac80211_memory_stats memory_stats;
 +	struct work_struct awgn_detected_work;
@@ -124,57 +124,59 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  
  	/* extended capabilities provided by mac80211 */
  	u8 ext_capa[8];
-@@ -2597,6 +2597,7 @@ void ieee80211_dfs_cac_timer(unsigned lo
- void ieee80211_dfs_cac_timer_work(struct work_struct *work);
- void ieee80211_dfs_cac_cancel(struct ieee80211_local *local);
- void ieee80211_dfs_radar_detected_work(struct work_struct *work);
+@@ -2658,6 +2658,7 @@ void ieee80211_dfs_cac_cancel(struct iee
+ 			      struct ieee80211_chanctx *chanctx);
+ void ieee80211_dfs_radar_detected_work(struct wiphy *wiphy,
+ 				       struct wiphy_work *work);
 +void ieee80211_awgn_detected_work(struct work_struct *work);
  int ieee80211_send_action_csa(struct ieee80211_sub_if_data *sdata,
  			      struct cfg80211_csa_settings *csa_settings);
  
 --- a/net/mac80211/iface.c
 +++ b/net/mac80211/iface.c
-@@ -544,7 +544,6 @@ static void ieee80211_do_stop(struct iee
- 	sdata_unlock(sdata);
+@@ -554,7 +554,6 @@ static void ieee80211_do_stop(struct iee
+ 	ieee80211_vif_unblock_queues_csa(sdata);
  
- 	cancel_work_sync(&sdata->deflink.csa_finalize_work);
+ 	wiphy_work_cancel(local->hw.wiphy, &sdata->deflink.csa.finalize_work);
 -	cancel_work_sync(&sdata->awgn_detected_work);
- 	cancel_work_sync(&sdata->deflink.color_change_finalize_work);
- 
- 	cancel_delayed_work_sync(&sdata->deflink.dfs_cac_timer_work);
+ 	wiphy_work_cancel(local->hw.wiphy,
+ 			  &sdata->deflink.color_change_finalize_work);
+ 	wiphy_delayed_work_cancel(local->hw.wiphy,
 --- a/net/mac80211/main.c
 +++ b/net/mac80211/main.c
-@@ -355,6 +355,7 @@ static void ieee80211_restart_work(struc
+@@ -477,6 +477,7 @@ static void ieee80211_restart_work(struc
+ 	int ret;
+ 
  	flush_workqueue(local->workqueue);
- 	flush_work(&local->sched_scan_stopped_work);
- 	flush_work(&local->radar_detected_work);
 +	flush_work(&local->awgn_detected_work);
  
  	rtnl_lock();
  	/* we might do interface manipulations, so need both */
-@@ -826,6 +827,8 @@ struct ieee80211_hw *ieee80211_alloc_hw_
+@@ -981,6 +982,9 @@ struct ieee80211_hw *ieee80211_alloc_hw_
  
- 	INIT_WORK(&local->radar_detected_work,
- 		  ieee80211_dfs_radar_detected_work);
-+	INIT_WORK(&local->awgn_detected_work,
-+		  ieee80211_awgn_detected_work);
+ 	wiphy_work_init(&local->radar_detected_work,
+ 			ieee80211_dfs_radar_detected_work);
++	
++	wiphy_work_init(&local->awgn_detected_work,
++		 	ieee80211_awgn_detected_work);
  
- 	INIT_WORK(&local->reconfig_filter, ieee80211_reconfig_filter);
- 	local->smps_mode = IEEE80211_SMPS_OFF;
-@@ -1508,6 +1511,7 @@ void ieee80211_unregister_hw(struct ieee
- 	cancel_work_sync(&local->reconfig_filter);
- 	flush_work(&local->sched_scan_stopped_work);
- 	flush_work(&local->radar_detected_work);
-+	flush_work(&local->awgn_detected_work);
+ 	wiphy_work_init(&local->reconfig_filter, ieee80211_reconfig_filter);
  
- 	ieee80211_clear_tx_pending(local);
- 	rate_control_deinitialize(local);
+@@ -1671,6 +1675,7 @@ void ieee80211_unregister_hw(struct ieee
+ 	wiphy_work_cancel(local->hw.wiphy, &local->reconfig_filter);
+ 	wiphy_work_cancel(local->hw.wiphy, &local->sched_scan_stopped_work);
+ 	wiphy_work_cancel(local->hw.wiphy, &local->radar_detected_work);
++	wiphy_work_cancel(&local->awgn_detected_work);
+ 	wiphy_unlock(local->hw.wiphy);
+ 	rtnl_unlock();
+ 
 --- a/net/mac80211/util.c
 +++ b/net/mac80211/util.c
-@@ -4377,6 +4377,32 @@ void ieee80211_dfs_cac_cancel(struct iee
- 	mutex_unlock(&local->mtx);
+@@ -3501,6 +3501,33 @@ void ieee80211_dfs_cac_cancel(struct iee
+ 	}
  }
  
++
 +void ieee80211_awgn_detected_work(struct work_struct *work)
 +{
 +	struct ieee80211_local *local =
@@ -198,13 +200,13 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
 +		WARN_ON_ONCE(1);
 +	else
 +		cfg80211_awgn_event(local->hw.wiphy, &chandef, GFP_KERNEL,
-+				    local->chan_bw_interference_bitmap);
++				   local->chan_bw_interference_bitmap);
 +}
 +
- void ieee80211_dfs_radar_detected_work(struct work_struct *work)
+ void ieee80211_dfs_radar_detected_work(struct wiphy *wiphy,
+ 				       struct wiphy_work *work)
  {
- 	struct ieee80211_local *local =
-@@ -4416,6 +4442,15 @@ void ieee80211_radar_detected(struct iee
+@@ -3559,6 +3586,15 @@ void ieee80211_radar_detected(struct iee
  }
  EXPORT_SYMBOL(ieee80211_radar_detected);
  
@@ -217,11 +219,11 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
 +}
 +EXPORT_SYMBOL(ieee80211_awgn_detected);
 +
- ieee80211_conn_flags_t ieee80211_chandef_downgrade(struct cfg80211_chan_def *c)
+ void ieee80211_chandef_downgrade(struct cfg80211_chan_def *c,
+ 				 struct ieee80211_conn_settings *conn)
  {
- 	ieee80211_conn_flags_t ret;
-@@ -4490,32 +4525,6 @@ ieee80211_conn_flags_t ieee80211_chandef
- 	return ret;
+@@ -3647,32 +3683,6 @@ again:
+ 	WARN_ON_ONCE(!cfg80211_chandef_valid(c));
  }
  
 -void ieee80211_awgn_interference_detected_work(struct work_struct *work)
@@ -255,7 +257,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
   * smps_mode_old.
 --- a/net/wireless/mlme.c
 +++ b/net/wireless/mlme.c
-@@ -986,6 +986,15 @@ void __cfg80211_radar_event(struct wiphy
+@@ -1109,6 +1109,15 @@ void __cfg80211_radar_event(struct wiphy
  }
  EXPORT_SYMBOL(__cfg80211_radar_event);
  
@@ -270,10 +272,10 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
 +
  void cfg80211_cac_event(struct net_device *netdev,
  			const struct cfg80211_chan_def *chandef,
- 			enum nl80211_radar_event event, gfp_t gfp)
+ 			enum nl80211_radar_event event, gfp_t gfp,
 --- a/net/wireless/nl80211.c
 +++ b/net/wireless/nl80211.c
-@@ -823,6 +823,7 @@ static const struct nla_policy nl80211_p
+@@ -840,6 +840,7 @@ static const struct nla_policy nl80211_p
  	[NL80211_ATTR_BEACON_TX_MODE] = NLA_POLICY_RANGE(NLA_U32, 1, 2),
  	[NL80211_ATTR_STA_MGMT_RTS_CTS_CONFIG] =
  					NLA_POLICY_MAX(NLA_U8, NL80211_MGMT_RTS_CTS_DISABLE),
@@ -281,7 +283,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  };
  
  /* policy for the key attributes */
-@@ -19507,6 +19508,55 @@ void cfg80211_ch_switch_notify(struct ne
+@@ -19696,6 +19697,55 @@ void cfg80211_ch_switch_notify(struct ne
  }
  EXPORT_SYMBOL(cfg80211_ch_switch_notify);
  
@@ -339,18 +341,18 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  				       unsigned int link_id, u8 count,
 --- a/net/mac80211/link.c
 +++ b/net/mac80211/link.c
-@@ -39,8 +39,6 @@ void ieee80211_link_init(struct ieee8021
- 
- 	INIT_WORK(&link->csa_finalize_work,
- 		  ieee80211_csa_finalize_work);
+@@ -41,8 +41,6 @@ void ieee80211_link_init(struct ieee8021
+ 			ieee80211_csa_finalize_work);
+ 	wiphy_work_init(&link->color_change_finalize_work,
+ 			ieee80211_color_change_finalize_work);
 -	INIT_WORK(&sdata->awgn_detected_work,
--		  ieee80211_awgn_interference_detected_work);
- 	INIT_WORK(&link->color_change_finalize_work,
- 		  ieee80211_color_change_finalize_work);
+-		 ieee80211_awgn_interference_detected_work);
  	INIT_DELAYED_WORK(&link->color_collision_detect_work,
+ 			  ieee80211_color_collision_detection_work);
+ 	INIT_LIST_HEAD(&link->assigned_chanctx_list);
 --- a/net/wireless/nl80211.h
 +++ b/net/wireless/nl80211.h
-@@ -114,6 +114,11 @@ nl80211_radar_notify(struct cfg80211_reg
+@@ -117,6 +117,11 @@ nl80211_radar_notify(struct cfg80211_reg
  		     enum nl80211_radar_event event,
  		     struct net_device *netdev, gfp_t gfp);
  
@@ -361,4 +363,4 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
 +
  void nl80211_send_ap_stopped(struct wireless_dev *wdev, unsigned int link_id);
  
- void cfg80211_rdev_free_coalesce(struct cfg80211_registered_device *rdev);
+ void cfg80211_free_coalesce(struct cfg80211_coalesce *coalesce);

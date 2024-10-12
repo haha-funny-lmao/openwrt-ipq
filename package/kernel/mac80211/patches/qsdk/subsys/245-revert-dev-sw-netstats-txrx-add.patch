@@ -16,7 +16,7 @@ Signed-off-by: Tamizh Chelvam <tamizhr@codeaurora.org>
 
 --- a/net/mac80211/rx.c
 +++ b/net/mac80211/rx.c
-@@ -33,6 +33,16 @@
+@@ -34,6 +34,16 @@
  #include "wme.h"
  #include "rate.h"
  
@@ -33,7 +33,7 @@ Signed-off-by: Tamizh Chelvam <tamizhr@codeaurora.org>
  /*
   * monitor mode reception
   *
-@@ -853,7 +863,7 @@ ieee80211_rx_monitor(struct ieee80211_lo
+@@ -863,7 +873,7 @@ ieee80211_rx_monitor(struct ieee80211_lo
  
  			if (skb) {
  				skb->dev = sdata->dev;
@@ -42,7 +42,7 @@ Signed-off-by: Tamizh Chelvam <tamizhr@codeaurora.org>
  				netif_receive_skb(skb);
  			}
  		}
-@@ -2690,7 +2700,7 @@ ieee80211_deliver_skb(struct ieee80211_r
+@@ -2728,7 +2738,7 @@ ieee80211_deliver_skb(struct ieee80211_r
  	skb = rx->skb;
  	xmit_skb = NULL;
  
@@ -51,7 +51,7 @@ Signed-off-by: Tamizh Chelvam <tamizhr@codeaurora.org>
  
  	if (rx->sta) {
  		/* The seqno index has the same property as needed
-@@ -4094,7 +4104,7 @@ static void ieee80211_rx_cooked_monitor(
+@@ -4169,7 +4179,7 @@ static void ieee80211_rx_cooked_monitor(
  		}
  
  		prev_dev = sdata->dev;
@@ -60,7 +60,7 @@ Signed-off-by: Tamizh Chelvam <tamizhr@codeaurora.org>
  	}
  
  	if (prev_dev) {
-@@ -4800,7 +4810,7 @@ static void ieee80211_rx_8023(struct iee
+@@ -4877,7 +4887,7 @@ static void ieee80211_rx_8023(struct iee
  
  	skb->dev = fast_rx->dev;
  
@@ -88,7 +88,7 @@ Signed-off-by: Tamizh Chelvam <tamizhr@codeaurora.org>
  /* misc utils */
  
  static __le16 ieee80211_duration(struct ieee80211_tx_data *tx,
-@@ -3558,7 +3568,7 @@ ieee80211_xmit_fast_finish(struct ieee80
+@@ -3580,7 +3590,7 @@ ieee80211_xmit_fast_finish(struct ieee80
  	if (key)
  		info->control.hw_key = &key->conf;
  
@@ -97,7 +97,7 @@ Signed-off-by: Tamizh Chelvam <tamizhr@codeaurora.org>
  
  	if (hdr->frame_control & cpu_to_le16(IEEE80211_STYPE_QOS_DATA)) {
  		tid = skb->priority & IEEE80211_QOS_CTL_TAG1D_MASK;
-@@ -4352,7 +4362,7 @@ void __ieee80211_subif_start_xmit(struct
+@@ -4376,7 +4386,7 @@ void __ieee80211_subif_start_xmit(struct
  			goto out;
  		}
  
@@ -106,9 +106,9 @@ Signed-off-by: Tamizh Chelvam <tamizhr@codeaurora.org>
  
  		ieee80211_xmit(sdata, sta, skb);
  	}
-@@ -4733,7 +4743,7 @@ static void ieee80211_8023_xmit(struct i
- 		info->ack_frame_id = ieee80211_store_ack_skb(local, skb,
- 							     &info->flags, NULL);
+@@ -4762,7 +4772,7 @@ static void ieee80211_8023_xmit(struct i
+ 			info->status_data_idr = 1;
+ 	}
  
 -	dev_sw_netstats_tx_add(dev, skbs, len);
 +	ieee80211_tx_stats(dev, len);

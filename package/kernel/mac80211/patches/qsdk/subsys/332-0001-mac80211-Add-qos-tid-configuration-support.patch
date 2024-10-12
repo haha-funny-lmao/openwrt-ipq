@@ -23,7 +23,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <quic_ssreeela@quicinc.com>
 
 --- a/include/net/cfg80211.h
 +++ b/include/net/cfg80211.h
-@@ -803,6 +803,8 @@ struct cfg80211_tid_cfg {
+@@ -876,6 +876,8 @@ struct cfg80211_tid_cfg {
  	enum nl80211_tid_config amsdu;
  	enum nl80211_tx_rate_setting txrate_type;
  	struct cfg80211_bitrate_mask txrate_mask;
@@ -32,7 +32,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <quic_ssreeela@quicinc.com>
  };
  
  /**
-@@ -1496,6 +1498,7 @@ enum station_parameters_apply_mask {
+@@ -1638,6 +1640,7 @@ enum station_parameters_apply_mask {
  	STATION_PARAM_APPLY_UAPSD = BIT(0),
  	STATION_PARAM_APPLY_CAPABILITY = BIT(1),
  	STATION_PARAM_APPLY_PLINK_STATE = BIT(2),
@@ -40,7 +40,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <quic_ssreeela@quicinc.com>
  };
  
  /**
-@@ -1631,6 +1634,7 @@ struct station_parameters {
+@@ -1788,6 +1791,7 @@ struct station_parameters {
  	u8 supported_oper_classes_len;
  	int support_p2p_ps;
  	u16 airtime_weight;
@@ -50,7 +50,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <quic_ssreeela@quicinc.com>
  
 --- a/include/net/mac80211.h
 +++ b/include/net/mac80211.h
-@@ -2413,6 +2413,7 @@ struct ieee80211_sta {
+@@ -2563,6 +2563,7 @@ struct ieee80211_sta {
  	struct ieee80211_sta_aggregates *cur;
  
  	bool support_p2p_ps;
@@ -58,7 +58,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <quic_ssreeela@quicinc.com>
  
  	struct ieee80211_txq *txq[IEEE80211_NUM_TIDS + 1];
  
-@@ -4446,6 +4447,9 @@ struct ieee80211_ops {
+@@ -4616,6 +4617,9 @@ struct ieee80211_ops {
  	int (*sta_set_txpwr)(struct ieee80211_hw *hw,
  			     struct ieee80211_vif *vif,
  			     struct ieee80211_sta *sta);
@@ -70,7 +70,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <quic_ssreeela@quicinc.com>
  			 enum ieee80211_sta_state old_state,
 --- a/include/uapi/linux/nl80211.h
 +++ b/include/uapi/linux/nl80211.h
-@@ -3372,6 +3372,8 @@ enum nl80211_attrs {
+@@ -3430,6 +3430,8 @@ enum nl80211_attrs {
  
  	NL80211_ATTR_BEACON_TX_MODE,
  
@@ -79,7 +79,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <quic_ssreeela@quicinc.com>
  	/* add attributes here, update the policy in nl80211.c */
  
  	__NL80211_ATTR_AFTER_LAST,
-@@ -4658,6 +4660,11 @@ enum nl80211_mesh_power_mode {
+@@ -4758,6 +4760,11 @@ enum nl80211_mesh_power_mode {
  	NL80211_MESH_POWER_MAX = __NL80211_MESH_POWER_AFTER_LAST - 1
  };
  
@@ -91,7 +91,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <quic_ssreeela@quicinc.com>
  /**
   * enum nl80211_meshconf_params - mesh configuration parameters
   *
-@@ -5513,6 +5520,8 @@ enum nl80211_tid_config_attr {
+@@ -5653,6 +5660,8 @@ enum nl80211_tid_config_attr {
  	NL80211_TID_CONFIG_ATTR_AMSDU_CTRL,
  	NL80211_TID_CONFIG_ATTR_TX_RATE_TYPE,
  	NL80211_TID_CONFIG_ATTR_TX_RATE,
@@ -100,17 +100,17 @@ Signed-off-by: Sowmiya Sree Elavalagan <quic_ssreeela@quicinc.com>
  
  	/* keep last */
  	__NL80211_TID_CONFIG_ATTR_AFTER_LAST,
-@@ -6502,6 +6511,7 @@ enum nl80211_ext_feature_index {
- 	NL80211_EXT_FEATURE_PUNCT,
- 	NL80211_EXT_FEATURE_SECURE_NAN,
- 	NL80211_EXT_FEATURE_AUTH_AND_DEAUTH_RANDOM_TA,
+@@ -6663,6 +6672,7 @@ enum nl80211_ext_feature_index {
+ 	NL80211_EXT_FEATURE_OWE_OFFLOAD_AP,
+ 	NL80211_EXT_FEATURE_DFS_CONCURRENT,
+ 	NL80211_EXT_FEATURE_SPP_AMSDU_SUPPORT,
 +	NL80211_EXT_FEATURE_STA_MGMT_RTS_CTS,
  
  	/* add new features before the definition below */
  	NUM_NL80211_EXT_FEATURES,
 --- a/net/mac80211/cfg.c
 +++ b/net/mac80211/cfg.c
-@@ -2002,6 +2002,13 @@ static int sta_apply_parameters(struct i
+@@ -2039,6 +2039,13 @@ static int sta_apply_parameters(struct i
  	if (params->listen_interval >= 0)
  		sta->listen_interval = params->listen_interval;
  
@@ -121,12 +121,12 @@ Signed-off-by: Sowmiya Sree Elavalagan <quic_ssreeela@quicinc.com>
 +			return ret;
 +	}
 +
- 	ret = sta_link_apply_parameters(local, sta, false,
+ 	ret = sta_link_apply_parameters(local, sta, STA_LINK_MODE_STA_MODIFY,
  					&params->link_sta_params);
  	if (ret)
 --- a/net/mac80211/driver-ops.c
 +++ b/net/mac80211/driver-ops.c
-@@ -165,6 +165,27 @@ int drv_sta_set_txpwr(struct ieee80211_l
+@@ -184,6 +184,27 @@ int drv_sta_set_txpwr(struct ieee80211_l
  	return ret;
  }
  
@@ -156,7 +156,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <quic_ssreeela@quicinc.com>
  		       struct ieee80211_sta *sta, u32 changed)
 --- a/net/mac80211/driver-ops.h
 +++ b/net/mac80211/driver-ops.h
-@@ -564,6 +564,11 @@ int drv_sta_set_txpwr(struct ieee80211_l
+@@ -613,6 +613,11 @@ int drv_sta_set_txpwr(struct ieee80211_l
  		      struct ieee80211_sub_if_data *sdata,
  		      struct sta_info *sta);
  
@@ -170,7 +170,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <quic_ssreeela@quicinc.com>
  		       struct ieee80211_sta *sta, u32 changed);
 --- a/net/mac80211/trace.h
 +++ b/net/mac80211/trace.h
-@@ -939,6 +939,34 @@ TRACE_EVENT(drv_sta_set_txpwr,
+@@ -971,6 +971,34 @@ TRACE_EVENT(drv_sta_set_txpwr,
  	)
  );
  
@@ -218,16 +218,16 @@ Signed-off-by: Sowmiya Sree Elavalagan <quic_ssreeela@quicinc.com>
  };
  
  static const struct nla_policy
-@@ -819,6 +821,8 @@ static const struct nla_policy nl80211_p
- 	[NL80211_ATTR_MLO_LINK_DISABLED] = { .type = NLA_FLAG },
- 	[NL80211_ATTR_WIPHY_ANTENNA_GAIN] = { .type = NLA_U32 },
+@@ -836,6 +838,8 @@ static const struct nla_policy nl80211_p
+ 	[NL80211_ATTR_MLO_TTLM_ULINK] = NLA_POLICY_EXACT_LEN(sizeof(u16) * 8),
+ 	[NL80211_ATTR_ASSOC_SPP_AMSDU] = { .type = NLA_FLAG },
  	[NL80211_ATTR_BEACON_TX_MODE] = NLA_POLICY_RANGE(NLA_U32, 1, 2),
 +	[NL80211_ATTR_STA_MGMT_RTS_CTS_CONFIG] =
 +					NLA_POLICY_MAX(NLA_U8, NL80211_MGMT_RTS_CTS_DISABLE),
  };
  
  /* policy for the key attributes */
-@@ -7302,6 +7306,15 @@ static int nl80211_set_station(struct sk
+@@ -7473,6 +7477,15 @@ static int nl80211_set_station(struct sk
  				     NL80211_EXT_FEATURE_AIRTIME_FAIRNESS))
  		return -EOPNOTSUPP;
  
@@ -243,7 +243,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <quic_ssreeela@quicinc.com>
  	err = nl80211_parse_sta_txpower_setting(info,
  						&params.link_sta_params.txpwr,
  						&params.link_sta_params.txpwr_set);
-@@ -15918,6 +15931,12 @@ static int parse_tid_conf(struct cfg8021
+@@ -16031,6 +16044,12 @@ static int parse_tid_conf(struct cfg8021
  		tid_conf->mask |= BIT(NL80211_TID_CONFIG_ATTR_AMPDU_CTRL);
  		tid_conf->ampdu =
  			nla_get_u8(attrs[NL80211_TID_CONFIG_ATTR_AMPDU_CTRL]);
@@ -256,7 +256,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <quic_ssreeela@quicinc.com>
  	}
  
  	if (attrs[NL80211_TID_CONFIG_ATTR_RTSCTS_CTRL]) {
-@@ -15930,6 +15949,12 @@ static int parse_tid_conf(struct cfg8021
+@@ -16043,6 +16062,12 @@ static int parse_tid_conf(struct cfg8021
  		tid_conf->mask |= BIT(NL80211_TID_CONFIG_ATTR_AMSDU_CTRL);
  		tid_conf->amsdu =
  			nla_get_u8(attrs[NL80211_TID_CONFIG_ATTR_AMSDU_CTRL]);

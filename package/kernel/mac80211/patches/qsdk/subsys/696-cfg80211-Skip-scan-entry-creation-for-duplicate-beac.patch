@@ -16,7 +16,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
 
 --- a/net/wireless/scan.c
 +++ b/net/wireless/scan.c
-@@ -1957,7 +1957,9 @@ cfg80211_get_bss_channel(struct wiphy *w
+@@ -2109,7 +2109,9 @@ cfg80211_get_bss_channel(struct wiphy *w
  	 * Frame info (beacon/prob res) is the same as received channel,
  	 * no need for further processing.
  	 */

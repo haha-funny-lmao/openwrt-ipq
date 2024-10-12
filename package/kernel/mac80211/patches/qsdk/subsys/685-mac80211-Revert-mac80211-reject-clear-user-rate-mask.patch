@@ -17,15 +17,15 @@ Signed-off-by: Maharaja Kennadyrajan <quic_mkenna@quicinc.com>
 
 --- a/net/mac80211/cfg.c
 +++ b/net/mac80211/cfg.c
-@@ -2763,7 +2763,6 @@ static int ieee80211_change_bss(struct w
- 					 params->basic_rates_len,
- 					 &link->conf->basic_rates);
+@@ -2761,7 +2761,6 @@ static int ieee80211_change_bss(struct w
+ 					      &link->conf->basic_rates))
+ 			return -EINVAL;
  		changed |= BSS_CHANGED_BASIC_RATES;
 -		ieee80211_check_rate_mask(link);
  	}
  
- 	if (params->ap_isolate >= 0) {
-@@ -3388,21 +3387,6 @@ static int ieee80211_set_bitrate_mask(st
+ 	if (params->use_cts_prot >= 0) {
+@@ -3448,23 +3447,6 @@ static int ieee80211_set_bitrate_mask(st
  	if (!ieee80211_sdata_running(sdata))
  		return -ENETDOWN;
  
@@ -36,9 +36,11 @@ Signed-off-by: Maharaja Kennadyrajan <quic_mkenna@quicinc.com>
 -	 * so at a basic rate so that all clients can receive it.
 -	 */
 -	if (rcu_access_pointer(sdata->vif.bss_conf.chanctx_conf) &&
--	    sdata->vif.bss_conf.chandef.chan) {
+-	    sdata->vif.bss_conf.chanreq.oper.chan) {
 -		u32 basic_rates = sdata->vif.bss_conf.basic_rates;
--		enum nl80211_band band = sdata->vif.bss_conf.chandef.chan->band;
+-		enum nl80211_band band;
+-
+-		band = sdata->vif.bss_conf.chanreq.oper.chan->band;
 -
 -		if (!(mask->control[band].legacy & basic_rates))
 -			return -EINVAL;
@@ -49,18 +51,18 @@ Signed-off-by: Maharaja Kennadyrajan <quic_mkenna@quicinc.com>
  		if (ret)
 --- a/net/mac80211/mlme.c
 +++ b/net/mac80211/mlme.c
-@@ -2673,8 +2673,6 @@ static u32 ieee80211_link_set_associated
+@@ -3401,8 +3401,6 @@ static u64 ieee80211_link_set_associated
  						   bss->has_erp_value,
  						   bss->erp_value);
  
 -	ieee80211_check_rate_mask(link);
 -
- 	link->u.mgd.bss = cbss;
+ 	link->conf->bss = cbss;
  	memcpy(link->u.mgd.bssid, cbss->bssid, ETH_ALEN);
  
 --- a/net/mac80211/rate.c
 +++ b/net/mac80211/rate.c
-@@ -270,38 +270,6 @@ static void rate_control_free(struct iee
+@@ -271,38 +271,6 @@ static void rate_control_free(struct iee
  	kfree(ctrl_ref);
  }
  
@@ -72,10 +74,10 @@ Signed-off-by: Maharaja Kennadyrajan <quic_mkenna@quicinc.com>
 -	u32 user_mask, basic_rates = link->conf->basic_rates;
 -	enum nl80211_band band;
 -
--	if (WARN_ON(!link->conf->chandef.chan))
+-	if (WARN_ON(!link->conf->chanreq.oper.chan))
 -		return;
 -
--	band = link->conf->chandef.chan->band;
+-	band = link->conf->chanreq.oper.chan->band;
 -	if (band == NL80211_BAND_S1GHZ) {
 -		/* TODO */
 -		return;
