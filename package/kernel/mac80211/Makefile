@@ -44,6 +44,8 @@ include $(INCLUDE_DIR)/package.mk
 
 WMENU:=Wireless Drivers
 
+QSDK_PATCHES:= subsys ath11k
+
 define KernelPackage/mac80211/Default
   SUBMENU:=$(WMENU)
   URL:=https://wireless.wiki.kernel.org/
@@ -129,7 +131,8 @@ define KernelPackage/mac80211
   $(call KernelPackage/mac80211/Default)
   TITLE:=Linux 802.11 Wireless Networking Stack
   # +kmod-crypto-cmac is a runtime only dependency of net/mac80211/aes_cmac.c
-  DEPENDS+= +kmod-cfg80211 +kmod-crypto-cmac +kmod-crypto-ccm +kmod-crypto-gcm +hostapd-common
+  DEPENDS+= +kmod-cfg80211 +kmod-crypto-cmac +kmod-crypto-ccm +kmod-crypto-gcm +hostapd-common \
+	    +ATH11K_NSS_SUPPORT:kmod-qca-nss-drv
   KCONFIG:=\
 	CONFIG_AVERAGE=y
   FILES:= $(PKG_BUILD_DIR)/net/mac80211/mac80211.ko
@@ -139,6 +142,14 @@ endef
 
 define KernelPackage/mac80211/config
   if PACKAGE_kmod-mac80211
+
+  	if PACKAGE_kmod-qca-nss-drv
+		config PACKAGE_MAC80211_NSS_SUPPORT
+			bool "Enable NSS support"
+			default y
+			help
+			  This option enables support for NSS in QCA boards.
+  	endif
 
 	config PACKAGE_MAC80211_DEBUGFS
 		bool "Export mac80211 internals in DebugFS"
@@ -354,6 +365,11 @@ define Build/Patch
 	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/mwl,mwl/)
 	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/brcm,brcm/)
 	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/rtl,rtl/)
+ifdef CONFIG_ATH11K_NSS_SUPPORT
+	$(foreach driver,$(QSDK_PATCHES),
+		$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/qsdk/$(driver),qsdk/$(driver)/)
+	)
+endif
 	$(if $(QUILT),touch $(PKG_BUILD_DIR)/.quilt_used)
 endef
 
@@ -371,6 +387,11 @@ define Quilt/Refresh/Package
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/mwl,mwl/)
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/brcm,brcm/)
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/rtl,rtl/)
+ifdef CONFIG_ATH11K_NSS_SUPPORT
+	$(foreach driver,$(QSDK_PATCHES),
+		$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/qsdk/$(driver),qsdk/$(driver)/)
+	)
+endif
 endef
 
 define Build/Compile
