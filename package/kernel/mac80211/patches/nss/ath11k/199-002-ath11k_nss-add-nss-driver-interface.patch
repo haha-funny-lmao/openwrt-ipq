@@ -2765,10 +2765,10 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  	void (*ce_irq_disable)(struct ath11k_base *ab);
  	void (*get_ce_msi_idx)(struct ath11k_base *ab, u32 ce_id, u32 *msi_idx);
 +	u32 (*get_window_offset)(struct ath11k_base *ab, u32 offset);
+ 	int (*pre_start_firmware)(struct ath11k_base *ab);
  };
  
- static inline void ath11k_hif_ce_irq_enable(struct ath11k_base *ab)
-@@ -137,6 +138,14 @@ static inline void ath11k_get_msi_addres
+@@ -138,6 +139,14 @@ static inline void ath11k_get_msi_addres
  	ab->hif.ops->get_msi_address(ab, msi_addr_lo, msi_addr_hi);
  }
  
@@ -2785,12 +2785,28 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  {
 --- a/drivers/net/wireless/ath/ath11k/pci.c
 +++ b/drivers/net/wireless/ath/ath11k/pci.c
-@@ -70,6 +70,20 @@ static u32 ath11k_pci_get_window_start(s
- 		return ATH11K_PCI_WINDOW_START;
+@@ -73,6 +73,36 @@ static u32 ath11k_pci_get_window(struct
+ 	}
  }
  
++static u32 ath11k_pci_get_window_start(struct ath11k_base *ab, u32 offset)
++ {
++ 	if (!ab->hw_params.static_window_map)
++		return ATH11K_PCI_WINDOW_START;
++
++	if ((offset ^ HAL_SEQ_WCSS_UMAC_OFFSET) < ATH11K_PCI_WINDOW_RANGE_MASK)
++		/* if offset lies within DP register range, use 3rd window */
++		return 3 * ATH11K_PCI_WINDOW_START;
++	else if ((offset ^ HAL_SEQ_WCSS_UMAC_CE0_SRC_REG(ab)) <
++		 ATH11K_PCI_WINDOW_RANGE_MASK)
++		 /* if offset lies within CE register range, use 2nd window */
++		return 2 * ATH11K_PCI_WINDOW_START;
++	else
++		return ATH11K_PCI_WINDOW_START;
++}
++
 +static inline u32 ath11k_pci_get_window_offset(struct ath11k_base *ab,
-+					       u32 offset)
++					      u32 offset)
 +{
 +	u32 window_start;
 +
@@ -2803,10 +2819,10 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
 +	return offset;
 +}
 +
- static inline void ath11k_pci_select_window(struct ath11k_pci *ab_pci, u32 offset)
+ static inline void ath11k_pci_window1_select(struct ath11k_pci *ab_pci, u32 regaddr)
  {
  	struct ath11k_base *ab = ab_pci->ab;
-@@ -723,6 +737,7 @@ static const struct ath11k_hif_ops ath11
+@@ -726,6 +756,7 @@ static const struct ath11k_hif_ops ath11
  	.map_service_to_pipe = ath11k_pcic_map_service_to_pipe,
  	.ce_irq_enable = ath11k_pci_hif_ce_irq_enable,
  	.ce_irq_disable = ath11k_pci_hif_ce_irq_disable,
@@ -3017,7 +3033,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  	/* TODO: Do we need to enable ANI? */
 --- a/drivers/net/wireless/ath/ath11k/core.h
 +++ b/drivers/net/wireless/ath/ath11k/core.h
-@@ -891,6 +891,8 @@ struct ath11k_soc_dp_tx_err_stats {
+@@ -895,6 +895,8 @@ struct ath11k_soc_dp_tx_err_stats {
  	 * idr unavailable etc.
  	 */
  	atomic_t misc_fail;
@@ -3026,7 +3042,7 @@ Signed-off-by: Sriram R <srirrama@codeaurora.org>
  };
  
  struct ath11k_soc_dp_stats {
-@@ -977,6 +979,7 @@ struct ath11k_base {
+@@ -981,6 +983,7 @@ struct ath11k_base {
  	struct list_head peers;
  	wait_queue_head_t peer_mapping_wq;
  	u8 mac_addr[ETH_ALEN];
